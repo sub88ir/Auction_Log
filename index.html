@@ -933,6 +933,82 @@
     function saveGistConfig() {
       try {
         localStorage.setItem(GIST_CONFIG_KEY, JSON.stringify(gistConfig));
+      } catch (e) {
+        console.error('Failed to save Gist config:', e);
+      }
+      updateSyncStatusUI();
+    }
+
+    /* =========================================================================
+       5. THEME & UTILITY HELPERS
+    ========================================================================= */
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('auction_log_theme', isDark ? 'dark' : 'light');
+    }
+
+    function generateId(prefix = 'id') {
+      return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+
+    function escapeHTML(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatCurrency(num, showPlus = false) {
+      const n = Number(num) || 0;
+      const absStr = Math.abs(n).toLocaleString('ko-KR') + '원';
+      if (n < 0) return `-${absStr}`;
+      if (n > 0 && showPlus) return `+${absStr}`;
+      return absStr;
+    }
+
+    function formatDisplayDate(isoDate) {
+      if (!isoDate) return '';
+      const parts = isoDate.split('-');
+      if (parts.length !== 3) return isoDate;
+      return `${parts[0]}. ${parseInt(parts[1], 10)}. ${parseInt(parts[2], 10)}`;
+    }
+
+    function getTodayDateString() {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function getCategoryMeta(catId) {
+      return CATEGORIES.find(c => c.id === catId) || CATEGORIES[CATEGORIES.length - 1];
+    }
+
+    function getStatusMeta(statusId) {
+      return PROPERTY_STATUSES.find(s => s.id === statusId) || PROPERTY_STATUSES[0];
+    }
+
+    function getCurrentProperty() {
+      return appData.properties.find(p => p.id === state.currentPropertyId) || appData.properties[0] || null;
+    }
+
+    function getPropertyRecords(propertyId) {
+      return appData.records.filter(r => r.propertyId === propertyId);
+    }
+
+    /* =========================================================================
+       6. MASTER RENDER & PROPERTY SELECTOR
+    ========================================================================= */
+    function renderAll() {
+      renderPropertySelector();
+      renderDashboard();
+      renderFilterControls();
+      renderRecords();
+    }
+
     function getFilteredProperties() {
       const q = state.propertySearchQuery.trim().toLowerCase();
       return appData.properties.filter(p => {
