@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="ko" class="antialiased">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>경매 일지 — Auction Log</title>
+  <meta name="description" content="부동산 경매 과정과 지출·수입 내역을 깔끔하게 기록하고 관리하는 경매 일지" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#09090b" media="(prefers-color-scheme: dark)" />
+
+  <!-- Pretendard Variable Font -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Pretendard Variable"', 'Pretendard', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3182f6', // Toss-inspired crisp blue
+              600: '#1b64da',
+              700: '#194aa6',
+            }
+          },
+          boxShadow: {
+            'soft': '0 2px 12px -2px rgba(15, 23, 42, 0.05), 0 1px 3px -1px rgba(15, 23, 42, 0.03)',
+            'sheet': '0 -8px 30px rgba(0, 0, 0, 0.12)',
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Initial Theme Script (Prevents Flash of Wrong Theme) -->
+  <script>
+    (function () {
+      const saved = localStorage.getItem('auction_log_theme');
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      if (saved === 'dark' || (!saved && prefersDark)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    })();
+  </script>
+
+  <style>
+    /* Typography & Numeric Alignment */
+    body {
+      font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Hide Scrollbars for Horizontal Chip Strips */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Custom Subtle Scrollbar for Desktop */
+    @media (min-width: 1024px) {
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.35);
+        border-radius: 9999px;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: rgba(113, 113, 122, 0.45);
+      }
+    }
+
+    /* Smooth Modal / Bottom Sheet Transitions */
+    .sheet-backdrop {
+      transition: opacity 0.22s ease;
+    }
+    .sheet-panel {
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
+    }
+    .safe-bottom {
+      padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    }
+
+    /* Line clamp utility for memo preview */
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body class="bg-[#f4f6f9] text-slate-900 dark:bg-zinc-950 dark:text-zinc-100 min-h-screen selection:bg-brand-500/20">
+
+  <!-- =====================================================================
+       TOP NAVIGATION HEADER
+  ====================================================================== -->
+  <header class="sticky top-0 z-30 bg-white/85 dark:bg-zinc-950/85 backdrop-blur-md border-b border-slate-200/80 dark:border-zinc-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-3">
+      <!-- Brand Logo & Mobile Property Selector -->
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-8 h-8 rounded-xl bg-brand-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <h1 class="text-base sm:text-lg font-bold tracking-tight text-slate-900 dark:text-white leading-tight truncate">경매 일지</h1>
+          <p class="hidden sm:block text-[11px] font-medium text-slate-400 dark:text-zinc-500 tracking-wide">AUCTION LOG</p>
+        </div>
+      </div>
+
+      <!-- Right Action Controls -->
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <!-- Quick Sync Status / Trigger Button -->
+        <button id="headerSyncBtn" onclick="openSettingsModal()" title="클라우드 동기화 및 백업"
+          class="flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-xs font-medium text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/80 transition-colors">
+          <span id="syncStatusDot" class="w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-600"></span>
+          <span id="syncStatusLabel" class="hidden sm:inline">로컬 저장</span>
+        </button>
+
+        <!-- Theme Toggle -->
+        <button id="themeToggleBtn" onclick="toggleTheme()" aria-label="테마 전환"
+          class="p-2.5 rounded-xl text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/80 transition-colors">
+          <!-- Sun icon (shown in dark mode) -->
+          <svg id="iconSun" class="w-5 h-5 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <!-- Moon icon (shown in light mode) -->
+          <svg id="iconMoon" class="w-5 h-5 block dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+
+        <!-- Settings / Backup Button -->
+        <button onclick="openSettingsModal()" aria-label="설정 및 백업"
+          class="p-2.5 rounded-xl text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800/80 transition-colors">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+
+        <!-- Desktop Primary Add Record Button -->
+        <button onclick="openRecordModal()"
+          class="hidden lg:inline-flex items-center gap-1.5 bg-brand-500 hover:bg-brand-600 active:scale-[0.98] text-white text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          기록 추가
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- =====================================================================
+       MAIN CONTENT LAYOUT (PC: 2-Column / Mobile: Single Column Stack)
+  ====================================================================== -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-28 lg:pb-12">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-7 items-start">
+
+      <!-- ================================================================
+           LEFT SIDEBAR (Property Selector + Dashboard Summary + Breakdown)
+      ================================================================= -->
+      <aside class="lg:col-span-4 xl:col-span-4 space-y-4 lg:sticky lg:top-22">
+
+        <!-- Property Selector Card -->
+        <section class="bg-white dark:bg-zinc-900 rounded-2xl p-4 sm:p-5 border border-slate-200/75 dark:border-zinc-800 shadow-soft">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">관리 물건</span>
+            <button onclick="openPropertyModal()"
+              class="inline-flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-600 dark:text-blue-400 px-2 py-1 rounded-lg hover:bg-brand-50 dark:hover:bg-blue-500/10 transition-colors">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              물건 추가
+            </button>
+          </div>
+
+          <!-- Dropdown & Edit Button -->
+          <div class="flex items-center gap-2">
+            <div class="relative flex-1 min-w-0">
+              <select id="propertySelect" onchange="selectProperty(this.value)"
+                class="w-full appearance-none bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700/80 text-slate-900 dark:text-white font-semibold text-sm sm:text-[15px] rounded-xl pl-3.5 pr-9 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all truncate cursor-pointer">
+              </select>
+              <svg class="w-4 h-4 text-slate-400 pointer-events-none absolute right-3 top-1/2 -translate-y-1/2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </div>
+            <button onclick="openPropertyModal(state.currentPropertyId)" title="물건 정보 수정"
+              class="p-2.5 rounded-xl bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700/80 text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-700/80 transition-colors shrink-0">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Selected Property Meta Info -->
+          <div id="propertyMeta" class="mt-3.5 pt-3.5 border-t border-slate-100 dark:border-zinc-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <!-- Populated by JS -->
+          </div>
+        </section>
+
+        <!-- Dashboard Summary Cards -->
+        <section class="bg-white dark:bg-zinc-900 rounded-2xl p-4 sm:p-5 border border-slate-200/75 dark:border-zinc-800 shadow-soft">
+          <!-- Primary Metric: Net Investment -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-slate-500 dark:text-zinc-400">순투입금 (총 지출 - 총 수입)</span>
+              <span id="statCountBadge" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 tabular-nums">0건</span>
+            </div>
+            <div id="statNetAmount" class="mt-1 text-2xl sm:text-[28px] font-bold tracking-tight text-slate-900 dark:text-white tabular-nums">
+              0원
+            </div>
+          </div>
+
+          <!-- Expense & Income Sub-cards -->
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="rounded-xl bg-blue-50/70 dark:bg-blue-500/10 border border-blue-100/80 dark:border-blue-500/15 p-3">
+              <div class="text-[11px] font-medium text-blue-600/80 dark:text-blue-400 mb-0.5">총 지출액</div>
+              <div id="statTotalExpense" class="text-sm sm:text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums truncate">0원</div>
+            </div>
+            <div class="rounded-xl bg-emerald-50/70 dark:bg-emerald-500/10 border border-emerald-100/80 dark:border-emerald-500/15 p-3">
+              <div class="text-[11px] font-medium text-emerald-600/80 dark:text-emerald-400 mb-0.5">총 수입액</div>
+              <div id="statTotalIncome" class="text-sm sm:text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums truncate">0원</div>
+            </div>
+          </div>
+
+          <!-- Category Expense Breakdown -->
+          <div id="categoryBreakdownSection" class="mt-4 pt-4 border-t border-slate-100 dark:border-zinc-800/80">
+            <div class="flex items-center justify-between text-xs mb-2">
+              <span class="font-semibold text-slate-600 dark:text-zinc-300">카테고리별 지출 비중</span>
+              <span class="text-slate-400 dark:text-zinc-500">지출 기준</span>
+            </div>
+            <!-- Stacked Progress Bar -->
+            <div id="categoryProgressBar" class="w-full h-2.5 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden flex gap-0.5 mb-3">
+              <!-- Segments injected by JS -->
+            </div>
+            <!-- Legend List -->
+            <div id="categoryLegend" class="space-y-1.5 text-xs">
+              <!-- Legend rows injected by JS -->
+            </div>
+          </div>
+        </section>
+
+      </aside>
+
+      <!-- ================================================================
+           RIGHT MAIN AREA (Search / Filters / View Toggle / Records)
+      ================================================================= -->
+      <section class="lg:col-span-8 xl:col-span-8 space-y-4 min-w-0">
+
+        <!-- Search & Filter Control Panel -->
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl p-3.5 sm:p-4 border border-slate-200/75 dark:border-zinc-800 shadow-soft space-y-3">
+          <!-- Top Row: Search Input + View Toggle + Sort Toggle -->
+          <div class="flex flex-col sm:flex-row gap-2.5">
+            <!-- Search Input -->
+            <div class="relative flex-1">
+              <svg class="w-4 h-4 text-slate-400 dark:text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input id="searchInput" type="text" placeholder="내용, 비고 검색 (예: 임차인, 법무사, 대출...)" oninput="handleSearch(this.value)"
+                class="w-full bg-slate-50 dark:bg-zinc-800/80 border border-slate-200/80 dark:border-zinc-700/70 rounded-xl pl-10 pr-9 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all" />
+              <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Action Buttons Row (Amount filter, Sort, View Toggle) -->
+            <div class="flex items-center justify-between sm:justify-end gap-2">
+              <!-- Only with Amount Toggle -->
+              <button id="onlyAmountBtn" onclick="toggleOnlyAmount()"
+                class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap bg-slate-50 dark:bg-zinc-800/80 border-slate-200/80 dark:border-zinc-700/70 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700/80">
+                <span>₩ 금액만</span>
+              </button>
+
+              <!-- Sort Order Toggle -->
+              <button id="sortOrderBtn" onclick="toggleSortOrder()"
+                class="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-zinc-800/80 border border-slate-200/80 dark:border-zinc-700/70 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700/80 transition-all whitespace-nowrap">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>
+                </svg>
+                <span id="sortOrderLabel">최신순</span>
+              </button>
+
+              <!-- View Mode Segmented Control -->
+              <div class="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-zinc-800/90 border border-slate-200/60 dark:border-zinc-700/60">
+                <button id="viewTimelineBtn" onclick="setViewMode('timeline')" title="타임라인 카드 뷰"
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="6" rx="2"></rect><rect x="3" y="14" width="18" height="6" rx="2"></rect>
+                  </svg>
+                  <span class="hidden sm:inline">카드</span>
+                </button>
+                <button id="viewTableBtn" onclick="setViewMode('table')" title="스프레드시트 테이블 뷰"
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line>
+                  </svg>
+                  <span class="hidden sm:inline">테이블</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category Filter Chips (Horizontal Scrollable) -->
+          <div id="categoryFilterChips" class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Filtered Summary Bar (Shown when filters active) -->
+        <div id="filteredBanner" class="hidden items-center justify-between px-4 py-2.5 rounded-xl bg-brand-50/80 dark:bg-blue-500/10 border border-brand-100 dark:border-blue-500/20 text-xs">
+          <div class="text-slate-700 dark:text-zinc-200 font-medium">
+            필터 결과 <strong id="filteredCount" class="text-brand-600 dark:text-blue-400 tabular-nums">0</strong>건
+            <span class="mx-1.5 text-slate-300 dark:text-zinc-700">|</span>
+            합계 <strong id="filteredSum" class="tabular-nums">0원</strong>
+          </div>
+          <button onclick="resetFilters()" class="font-semibold text-brand-600 dark:text-blue-400 hover:underline">필터 초기화</button>
+        </div>
+
+        <!-- Records Container (Timeline View or Table View) -->
+        <div id="recordsContainer" class="space-y-3">
+          <!-- Rendered dynamically by JS -->
+        </div>
+
+      </section>
+    </div>
+  </main>
+
+  <!-- =====================================================================
+       MOBILE FLOATING ACTION BUTTON (+)
+  ====================================================================== -->
+  <button onclick="openRecordModal()" aria-label="새 기록 추가"
+    class="lg:hidden fixed right-5 bottom-6 z-30 w-14 h-14 rounded-2xl bg-brand-500 hover:bg-brand-600 active:scale-95 text-white shadow-lg shadow-brand-500/35 flex items-center justify-center transition-transform">
+    <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  </button>
+
+  <!-- =====================================================================
+       MODAL 1: RECORD ADD / EDIT (Mobile Bottom Sheet / Desktop Modal)
+  ====================================================================== -->
+  <div id="recordModal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <!-- Backdrop -->
+    <div id="recordModalBackdrop" onclick="closeRecordModal()" class="sheet-backdrop fixed inset-0 bg-slate-900/50 dark:bg-black/70 backdrop-blur-[2px] opacity-0"></div>
+    <!-- Sheet Container -->
+    <div class="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4 pointer-events-none">
+      <div id="recordModalPanel"
+        class="sheet-panel pointer-events-auto w-full sm:max-w-lg bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-3xl shadow-sheet border-t sm:border border-slate-200/80 dark:border-zinc-800 max-h-[92vh] flex flex-col translate-y-full sm:translate-y-4 sm:opacity-0">
+
+        <!-- Mobile Drag Handle -->
+        <div class="sm:hidden flex justify-center pt-3 pb-1">
+          <div class="w-10 h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700"></div>
+        </div>
+
+        <!-- Modal Header -->
+        <div class="px-5 pt-3 sm:pt-5 pb-3 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+          <h2 id="recordModalTitle" class="text-lg font-bold text-slate-900 dark:text-white">새 경매 기록</h2>
+          <button onclick="closeRecordModal()" class="p-2 -mr-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Scrollable Form Body -->
+        <form id="recordForm" onsubmit="saveRecord(event)" class="overflow-y-auto px-5 py-4 space-y-4 flex-1">
+          <input type="hidden" id="recId" />
+
+          <!-- Date & Category -->
+          <div>
+            <label for="recDate" class="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1.5">날짜</label>
+            <input id="recDate" type="date" required
+              class="w-full bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 tabular-nums" />
+          </div>
+
+          <!-- Category One-Touch Chips -->
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1.5">카테고리</label>
+            <div id="recCategoryChips" class="flex flex-wrap gap-1.5">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Title + Quick Title Chips -->
+          <div>
+            <label for="recTitle" class="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1.5">내용 (제목)</label>
+            <input id="recTitle" type="text" required placeholder="예: 임차인에게 연락, 잔금 납부, 서류 발급"
+              class="w-full bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500" />
+            <!-- Quick Title Fill Chips -->
+            <div class="flex flex-wrap gap-1.5 mt-2">
+              <button type="button" onclick="quickSetTitle('임차인에게 연락')" class="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors">임차인에게 연락</button>
+              <button type="button" onclick="quickSetTitle('서류 발급')" class="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors">서류 발급</button>
+              <button type="button" onclick="quickSetTitle('법무사 연락')" class="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors">법무사 연락</button>
+              <button type="button" onclick="quickSetTitle('대출 이자 납부')" class="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors">대출 이자 납부</button>
+              <button type="button" onclick="quickSetTitle('현장 방문')" class="text-[11px] font-medium px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors">현장 방문</button>
+            </div>
+          </div>
+
+          <!-- Amount Input with Expense/Income Toggle & Quick Add Buttons -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label for="recAmount" class="text-xs font-semibold text-slate-500 dark:text-zinc-400">금액 (선택)</label>
+              <div class="inline-flex p-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800">
+                <button type="button" id="amtTypeExpense" onclick="setAmountType('expense')"
+                  class="px-2.5 py-1 rounded-md text-xs font-semibold transition-all">지출 (-)</button>
+                <button type="button" id="amtTypeIncome" onclick="setAmountType('income')"
+                  class="px-2.5 py-1 rounded-md text-xs font-semibold transition-all">수입 (+)</button>
+              </div>
+            </div>
+            <div class="relative">
+              <span id="amtSignPrefix" class="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-blue-600 dark:text-blue-400">-</span>
+              <input id="recAmount" type="text" inputmode="numeric" placeholder="0" oninput="handleAmountInput(this)"
+                class="w-full bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700 rounded-xl pl-8 pr-9 py-2.5 text-base font-bold text-right text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 tabular-nums" />
+              <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">원</span>
+            </div>
+            <!-- Quick Amount Add Buttons -->
+            <div class="grid grid-cols-5 gap-1.5 mt-2">
+              <button type="button" onclick="addQuickAmount(10000)" class="py-1.5 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 active:scale-95 transition-all">+1만</button>
+              <button type="button" onclick="addQuickAmount(100000)" class="py-1.5 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 active:scale-95 transition-all">+10만</button>
+              <button type="button" onclick="addQuickAmount(1000000)" class="py-1.5 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 active:scale-95 transition-all">+100만</button>
+              <button type="button" onclick="addQuickAmount(10000000)" class="py-1.5 rounded-lg text-[11px] font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700 active:scale-95 transition-all">+1,000만</button>
+              <button type="button" onclick="clearQuickAmount()" class="py-1.5 rounded-lg text-[11px] font-semibold bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 active:scale-95 transition-all">초기화</button>
+            </div>
+          </div>
+
+          <!-- Memo (Multi-line) -->
+          <div>
+            <label for="recMemo" class="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1.5">비고 (상세 메모)</label>
+            <textarea id="recMemo" rows="4" placeholder="진행 내용, 통화 기록, 제출 서류, 영수증 메모 등을 자유롭게 적어두세요."
+              class="w-full bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 resize-y leading-relaxed"></textarea>
+          </div>
+        </form>
+
+        <!-- Modal Footer Buttons -->
+        <div class="px-5 py-3.5 border-t border-slate-100 dark:border-zinc-800 flex items-center gap-2.5 safe-bottom">
+          <button type="button" id="deleteRecordModalBtn" onclick="confirmDeleteRecordFromModal()"
+            class="hidden px-4 py-3 rounded-xl text-sm font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors">
+            삭제
+          </button>
+          <button type="button" onclick="closeRecordModal()"
+            class="flex-1 py-3 rounded-xl text-sm font-semibold text-slate-600 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors">
+            취소
+          </button>
+          <button type="submit" form="recordForm"
+            class="flex-[2] py-3 rounded-xl text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 active:scale-[0.99] shadow-sm transition-all">
+            저장하기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 2: PROPERTY ADD / EDIT
+  ====================================================================== -->
+  <div id="propertyModal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <div id="propertyModalBackdrop" onclick="closePropertyModal()" class="sheet-backdrop fixed inset-0 bg-slate-900/50 dark:bg-black/70 backdrop-blur-[2px] opacity-0"></div>
+    <div class="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4 pointer-events-none">
+      <div id="propertyModalPanel"
+        class="sheet-panel pointer-events-auto w-full sm:max-w-md bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-3xl shadow-sheet border-t sm:border border-slate-200/80 dark:border-zinc-800 max-h-[90vh] flex flex-col translate-y-full sm:translate-y-4 sm:opacity-0">
+
+        <div class="sm:hidden flex justify-center pt-3 pb-1">
+          <div class="w-10 h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700"></div>
+        </div>
+
+        <div class="px-5 pt-3 sm:pt-5 pb-3 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+          <h2 id="propertyModalTitle" class="text-lg font-bold text-slate-900 dark:text-white">새 물건 등록</h2>
+          <button onclick="closePropertyModal()" class="p-2 -mr-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <form id="propertyForm" onsubmit="saveProperty(event)" class="overflow-y-auto px-5 py-4 space-y-4 flex-1">
+          <input type="hidden" id="propId" />
+
+          <div>
+            <label for="propCaseNumber" class="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1.5">사건번호</label>
+            <input id="propCaseNumber" type="text" required placeholder="예: 2025타경10251"
+              class="w-full bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500" />
+          </div>
+
+          <div>
+            <label for="propName" class="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1.5">물건명 / 별칭</label>
+            <input id="propName" type="text" required placeholder="예: 천안 불당동 아파트 101동"
+              class="w-full bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500" />
+          </div>
+
+          <div>
+            <label for="propWinningBid" class="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1.5">낙찰가 (원)</label>
+            <div class="relative">
+              <input id="propWinningBid" type="text" inputmode="numeric" placeholder="0" oninput="formatNumberInput(this)"
+                class="w-full bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700 rounded-xl pl-3.5 pr-9 py-2.5 text-sm font-bold text-right text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 tabular-nums" />
+              <span class="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">원</span>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-500 dark:text-zinc-400 mb-1.5">진행 상태</label>
+            <div id="propStatusChips" class="flex flex-wrap gap-1.5">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </form>
+
+        <div class="px-5 py-3.5 border-t border-slate-100 dark:border-zinc-800 flex items-center gap-2.5 safe-bottom">
+          <button type="button" id="deletePropBtn" onclick="confirmDeleteProperty()"
+            class="hidden px-4 py-3 rounded-xl text-sm font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors">
+            삭제
+          </button>
+          <button type="button" onclick="closePropertyModal()"
+            class="flex-1 py-3 rounded-xl text-sm font-semibold text-slate-600 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors">
+            취소
+          </button>
+          <button type="submit" form="propertyForm"
+            class="flex-[2] py-3 rounded-xl text-sm font-semibold text-white bg-brand-500 hover:bg-brand-600 transition-all">
+            저장하기
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 3: SETTINGS, GITHUB GIST CLOUD SYNC & DATA BACKUP
+  ====================================================================== -->
+  <div id="settingsModal" class="fixed inset-0 z-50 hidden" aria-modal="true" role="dialog">
+    <div id="settingsModalBackdrop" onclick="closeSettingsModal()" class="sheet-backdrop fixed inset-0 bg-slate-900/50 dark:bg-black/70 backdrop-blur-[2px] opacity-0"></div>
+    <div class="fixed inset-0 flex items-end sm:items-center justify-center sm:p-4 pointer-events-none">
+      <div id="settingsModalPanel"
+        class="sheet-panel pointer-events-auto w-full sm:max-w-lg bg-white dark:bg-zinc-900 rounded-t-3xl sm:rounded-3xl shadow-sheet border-t sm:border border-slate-200/80 dark:border-zinc-800 max-h-[92vh] flex flex-col translate-y-full sm:translate-y-4 sm:opacity-0">
+
+        <div class="sm:hidden flex justify-center pt-3 pb-1">
+          <div class="w-10 h-1.5 rounded-full bg-slate-200 dark:bg-zinc-700"></div>
+        </div>
+
+        <div class="px-5 pt-3 sm:pt-5 pb-3 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+          <h2 class="text-lg font-bold text-slate-900 dark:text-white">동기화 및 데이터 관리</h2>
+          <button onclick="closeSettingsModal()" class="p-2 -mr-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+
+        <div class="overflow-y-auto px-5 py-4 space-y-6 flex-1 safe-bottom">
+
+          <!-- Section 1: GitHub Gist Cloud Sync -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <svg class="w-5 h-5 text-slate-800 dark:text-zinc-200" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                </svg>
+                <h3 class="text-sm font-bold text-slate-900 dark:text-white">GitHub Gist 클라우드 동기화</h3>
+              </div>
+              <span id="gistConnBadge" class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400">미연결</span>
+            </div>
+
+            <p class="text-xs text-slate-500 dark:text-zinc-400 leading-relaxed">
+              GitHub Personal Access Token(<code class="px-1 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300">gist</code> 권한)을 연결하면 비공개 Gist에 데이터를 저장해 PC와 모바일 간 실시간으로 동기화할 수 있습니다.
+            </p>
+
+            <div class="space-y-2.5 bg-slate-50 dark:bg-zinc-800/50 rounded-2xl p-3.5 border border-slate-200/70 dark:border-zinc-800">
+              <div>
+                <label for="gistTokenInput" class="block text-[11px] font-semibold text-slate-500 dark:text-zinc-400 mb-1">GitHub Personal Access Token</label>
+                <input id="gistTokenInput" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                  class="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label for="gistIdInput" class="text-[11px] font-semibold text-slate-500 dark:text-zinc-400">Gist ID (비워두면 자동 생성)</label>
+                  <button type="button" onclick="copyGistId()" class="text-[11px] font-semibold text-brand-500 hover:underline">ID 복사</button>
+                </div>
+                <input id="gistIdInput" type="text" placeholder="다른 기기에서 생성된 Gist ID 입력 또는 공란"
+                  class="w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-xs font-mono text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
+              </div>
+
+              <!-- Auto Sync Toggle -->
+              <label class="flex items-center justify-between pt-1 cursor-pointer">
+                <span class="text-xs font-medium text-slate-700 dark:text-zinc-300">변경 시 자동 클라우드 저장 (Auto Push)</span>
+                <input id="gistAutoSyncCheck" type="checkbox" onchange="saveGistAutoSync(this.checked)"
+                  class="w-4 h-4 rounded accent-brand-500 cursor-pointer" />
+              </label>
+
+              <!-- Connect & Push/Pull Buttons -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1.5">
+                <button type="button" onclick="connectGist()"
+                  class="py-2.5 px-3 rounded-xl text-xs font-semibold bg-slate-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 transition-opacity">
+                  동기화 연결
+                </button>
+                <button type="button" onclick="pushToGist(false)"
+                  class="py-2.5 px-3 rounded-xl text-xs font-semibold bg-brand-500 text-white hover:bg-brand-600 transition-colors">
+                  클라우드 저장 (Push)
+                </button>
+                <button type="button" onclick="pullFromGist()"
+                  class="py-2.5 px-3 rounded-xl text-xs font-semibold bg-white dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-700 transition-colors">
+                  불러오기 (Pull)
+                </button>
+              </div>
+
+              <div class="flex items-center justify-between text-[11px] text-slate-400 dark:text-zinc-500 pt-1">
+                <span id="gistLastSyncedText">마지막 동기화: 없음</span>
+                <button type="button" onclick="disconnectGist()" class="text-rose-500 hover:underline">연결 해제</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 2: Export & Backup -->
+          <div class="space-y-3 pt-2 border-t border-slate-100 dark:border-zinc-800">
+            <h3 class="text-sm font-bold text-slate-900 dark:text-white">파일 백업 및 내보내기</h3>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <!-- CSV Export (Google Sheets Compatible) -->
+              <button type="button" onclick="exportCSV()"
+                class="flex items-center gap-3 p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-500/10 border border-emerald-200/70 dark:border-emerald-500/20 text-left hover:bg-emerald-100/70 dark:hover:bg-emerald-500/15 transition-colors">
+                <div class="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                  <svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line>
+                  </svg>
+                </div>
+                <div>
+                  <div class="text-xs font-bold text-emerald-900 dark:text-emerald-300">CSV 내보내기</div>
+                  <div class="text-[11px] text-emerald-700/80 dark:text-emerald-400/80">구글시트·엑셀 호환</div>
+                </div>
+              </button>
+
+              <!-- JSON Export -->
+              <button type="button" onclick="exportJSON()"
+                class="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-zinc-800/70 border border-slate-200/80 dark:border-zinc-700/70 text-left hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+                <div class="w-9 h-9 rounded-xl bg-slate-700 dark:bg-zinc-600 text-white flex items-center justify-center shrink-0">
+                  <svg class="w-4.5 h-4.5" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                </div>
+                <div>
+                  <div class="text-xs font-bold text-slate-900 dark:text-white">JSON 백업 저장</div>
+                  <div class="text-[11px] text-slate-500 dark:text-zinc-400">전체 물건·기록 파일</div>
+                </div>
+              </button>
+            </div>
+
+            <!-- JSON Import -->
+            <div class="flex items-center gap-2">
+              <label class="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl border border-dashed border-slate-300 dark:border-zinc-700 text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-slate-50 dark:hover:bg-zinc-800/60 cursor-pointer transition-colors">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                JSON 백업 파일 불러오기
+                <input type="file" accept=".json,application/json" onchange="importJSON(event)" class="hidden" />
+              </label>
+
+              <button type="button" onclick="confirmResetSampleData()"
+                class="py-2.5 px-3.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-colors whitespace-nowrap">
+                샘플 초기화
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MODAL 4: CUSTOM CONFIRMATION DIALOG (Replaces window.confirm)
+  ====================================================================== -->
+  <div id="confirmModal" class="fixed inset-0 z-[60] hidden" aria-modal="true" role="dialog">
+    <div onclick="closeConfirmModal()" class="fixed inset-0 bg-slate-900/50 dark:bg-black/75 backdrop-blur-[2px]"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+      <div class="pointer-events-auto w-full max-w-sm bg-white dark:bg-zinc-900 rounded-2xl p-5 shadow-xl border border-slate-200 dark:border-zinc-800 space-y-4">
+        <div>
+          <h3 id="confirmTitle" class="text-base font-bold text-slate-900 dark:text-white">확인</h3>
+          <p id="confirmMessage" class="mt-1.5 text-sm text-slate-600 dark:text-zinc-400 leading-relaxed"></p>
+        </div>
+        <div class="flex items-center justify-end gap-2">
+          <button type="button" onclick="closeConfirmModal()"
+            class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-zinc-300 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-colors">
+            취소
+          </button>
+          <button type="button" id="confirmOkBtn"
+            class="px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-colors">
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       TOAST NOTIFICATION CONTAINER
+  ====================================================================== -->
+  <div id="toastContainer" class="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-[70] flex flex-col items-center gap-2 pointer-events-none w-[90vw] max-w-sm"></div>
+
+  <!-- =====================================================================
+       APPLICATION JAVASCRIPT
+  ====================================================================== -->
+  <script>
+    /* =========================================================================
+       1. CONSTANTS & METADATA
+    ========================================================================= */
+    const STORAGE_KEY = 'auction_log_data_v1';
+    const GIST_CONFIG_KEY = 'auction_log_gist_config_v1';
+    const GIST_FILENAME = 'auction-log-data.json';
+
+    const CATEGORIES = [
+      { id: '입찰/낙찰',   color: '#3182f6', bg: 'bg-blue-50 dark:bg-blue-500/15',     text: 'text-blue-600 dark:text-blue-400',     dot: 'bg-blue-500' },
+      { id: '대출/잔금',   color: '#6366f1', bg: 'bg-indigo-50 dark:bg-indigo-500/15', text: 'text-indigo-600 dark:text-indigo-400', dot: 'bg-indigo-500' },
+      { id: '명도/임차인', color: '#f59e0b', bg: 'bg-amber-50 dark:bg-amber-500/15',   text: 'text-amber-700 dark:text-amber-400',   dot: 'bg-amber-500' },
+      { id: '법무/서류',   color: '#8b5cf6', bg: 'bg-violet-50 dark:bg-violet-500/15', text: 'text-violet-600 dark:text-violet-400', dot: 'bg-violet-500' },
+      { id: '수리/인테리어', color: '#10b981', bg: 'bg-emerald-50 dark:bg-emerald-500/15', text: 'text-emerald-700 dark:text-emerald-400', dot: 'bg-emerald-500' },
+      { id: '이자/유지비', color: '#f43f5e', bg: 'bg-rose-50 dark:bg-rose-500/15',     text: 'text-rose-600 dark:text-rose-400',     dot: 'bg-rose-500' },
+      { id: '기타',        color: '#64748b', bg: 'bg-slate-100 dark:bg-zinc-800',      text: 'text-slate-600 dark:text-zinc-300',    dot: 'bg-slate-400' }
+    ];
+
+    const PROPERTY_STATUSES = [
+      { id: '입찰준비', badge: 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300' },
+      { id: '명도중',   badge: 'bg-amber-100/80 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400' },
+      { id: '수리중',   badge: 'bg-violet-100/80 text-violet-700 dark:bg-violet-500/15 dark:text-violet-400' },
+      { id: '매도중',   badge: 'bg-blue-100/80 text-blue-700 dark:bg-blue-500/15 dark:text-blue-400' },
+      { id: '매도완료', badge: 'bg-emerald-100/80 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400' }
+    ];
+
+    /* =========================================================================
+       2. INITIAL SAMPLE DATA
+    ========================================================================= */
+    function createInitialData() {
+      const propId = 'prop_2025_10251';
+      return {
+        properties: [
+          {
+            id: propId,
+            caseNumber: '2025타경10251',
+            name: '2025타경10251 (샘플 물건)',
+            winningBid: 238888888,
+            status: '명도중',
+            createdAt: '2025-12-22T09:00:00.000Z'
+          }
+        ],
+        records: [
+          { id: 'rec_01', propertyId: propId, date: '2025-12-22', category: '입찰/낙찰', title: '대리입찰 바토너 수수료 (2025타경10290)', amount: -110000, memo: '' },
+          { id: 'rec_02', propertyId: propId, date: '2026-01-05', category: '입찰/낙찰', title: '대리입찰 바토너 수수료 (2024타경102864)', amount: -110000, memo: '' },
+          { id: 'rec_03', propertyId: propId, date: '2026-01-12', category: '입찰/낙찰', title: '입찰보증금 (2025타경10251)', amount: -17570000, memo: '' },
+          { id: 'rec_04', propertyId: propId, date: '2026-01-12', category: '입찰/낙찰', title: '낙찰 (238,888,888원)', amount: 0, memo: '- 임차인 현관에 포스트잇 붙여 연락처 남김\n- 관리사무소 방문하여 임차인 연락처 획득 및 미납관리비 재확인' },
+          { id: 'rec_05', propertyId: propId, date: '2026-01-13', category: '대출/잔금', title: '대출 중개인 연락', amount: 0, memo: '- 필요 서류 리스트 문자로 전달받음' },
+          { id: 'rec_06', propertyId: propId, date: '2026-01-14', category: '대출/잔금', title: '대출 중개인 필요서류 제출', amount: 0, memo: '- 24년 카드사용내역 (홈택스연말정산용)\n- 24년 소득금액 증명원\n- 건강보험자격득실원\n- 25년 카드사용내역 (카드사)\n- 신분증 사본 및 신용정보동의서' },
+          { id: 'rec_07', propertyId: propId, date: '2026-01-14', category: '법무/서류', title: '전입세대확인서 발급 및 사건기록 열람', amount: 0, memo: '- 주민센터 방문하여 전입세대확인서 발급받음 (신분증 및 경매지 정보 제출)\n- 전자소송 사건등록하여 사건기록 열람\n- 임차인이 실제 임차인이 맞는지 대조' },
+          { id: 'rec_08', propertyId: propId, date: '2026-01-14', category: '명도/임차인', title: '임차인에게 연락', amount: 0, memo: '- 요즘 바쁜관계로 문자 남겨놓으면 답장하겠다하여 내일 다시 연락드리겠다함' },
+          { id: 'rec_09', propertyId: propId, date: '2026-01-15', category: '명도/임차인', title: '임차인에게 연락', amount: 0, memo: '- 현재 거주중인지 여부 및 거주인원 확인 : 거주중이고 부부가 살고 있음\n- 이사일정 계획중인게 있는지 : 알아보고는 있는데 아직 일정은 나오지 않음' },
+          { id: 'rec_10', propertyId: propId, date: '2026-01-19', category: '명도/임차인', title: '임차인에게 연락', amount: 0, memo: '- 이사비는 보증금을 전부 회수하지 못하시는 양도 대상자에게 한해 법적의무가 없지만 위로 차원에서 지급하는것이다. 라고 설명했는데 굳이 협조해야할사항 없다고 말끊음' },
+          { id: 'rec_11', propertyId: propId, date: '2026-01-19', category: '법무/서류', title: '매각허가', amount: 0, memo: '- 법원에서 매각허가 판결나옴\n(1주일간의 항고기간 거쳐 이의 없으면 일주일 뒤 매각허가확정)' },
+          { id: 'rec_12', propertyId: propId, date: '2026-01-20', category: '법무/서류', title: '서류 발급', amount: -1200, memo: '동사무소 방문하여 금융기관제출용 인감증명서 2장 발급 (대출은행 제출용)' },
+          { id: 'rec_13', propertyId: propId, date: '2026-01-27', category: '대출/잔금', title: '대출 위해 은행 방문', amount: 0, memo: '- 지방세납세증명서 : 미납은 아니지만 자동차세등의 세금을 미리 완납해야 근저당 설정 등이 가능하기때문에 미리 납부해달라고 전달받음\n- 소득금액증명원, 대금지급기한 통지서 추가 제출 요구 : 사진으로 먼저 제출하고 추후 등기로 제출하기로함' },
+          { id: 'rec_14', propertyId: propId, date: '2026-02-03', category: '명도/임차인', title: '임차인에게 연락', amount: 0, memo: '임차인이 경매학원 등으로 추정되는 곳의 도움을 받아 입장을 정리중인것으로 보여 최후 통첩의 문자메시지 발송함.\n(2월말까지 나가면 월세면제+감사의뜻으로 50만원 주겠다. 제안을 받지않으면 50만원 지급 불가하고 법에서 인정되는 최고액의 월세 *감정가의 1% 청구할것이다)\n2월 9일까지 답변 달라고 통보함' },
+          { id: 'rec_15', propertyId: propId, date: '2026-02-05', category: '법무/서류', title: '법무사 연락', amount: -3613160, memo: '법무사에 인도명령 신청 서비스로 부탁 (전소유주 + 임차인 : 2건),\n기타 법무비용 영수증 발급받아 납부' },
+          { id: 'rec_16', propertyId: propId, date: '2026-02-05', category: '법무/서류', title: '전소유주 초본 발급', amount: -500, memo: '법무사에 인도명령 신청 서비스로 부탁 → 전소유주 현 주소 파악하기 위해 동사무소에서 초본 발급\n(신분증 및 매각허가 결정문 들고 방문, 소유주 이름, 주민등록번호 앞자리 제출)' },
+          { id: 'rec_17', propertyId: propId, date: '2026-02-05', category: '대출/잔금', title: '잔금 계좌에 송금', amount: -46393888, memo: '인지세 75,000원 포함' },
+          { id: 'rec_18', propertyId: propId, date: '2026-02-05', category: '대출/잔금', title: '잔금 계좌에 대출금 송금', amount: -175000000, memo: '' },
+          { id: 'rec_19', propertyId: propId, date: '2026-02-20', category: '명도/임차인', title: '현 임차인에게 내용증명 발송', amount: -7900, memo: '법적 증거로 활용위해 내용증명 작성하며 발송 (폐문부재로 미배달)' },
+          { id: 'rec_20', propertyId: propId, date: '2026-02-25', category: '명도/임차인', title: '임차인으로부터 연락', amount: 0, memo: '3월 8일자로 이사 날짜 정했다고 연락옴, 3월8일이 일요일이라 전출확인이 안되어 3월 9일날 몇시에 방문할지 물었으나 대답없음' },
+          { id: 'rec_21', propertyId: propId, date: '2026-02-25', category: '법무/서류', title: '현 임차인 인도명령 결정', amount: 0, memo: '*결정문 임차임에게 등기 발송' },
+          { id: 'rec_22', propertyId: propId, date: '2026-03-05', category: '이자/유지비', title: '대출 이자 납부', amount: -577260, memo: '' },
+          { id: 'rec_23', propertyId: propId, date: '2026-03-05', category: '법무/서류', title: '인감증명서 발급', amount: -1600, memo: '동사무소 방문하여 인감증명서 발급, 전입신고서 확인해봤으나 아직 전입중인것으로 확인' }
+        ]
+      };
+    }
+
+    /* =========================================================================
+       3. APPLICATION STATE
+    ========================================================================= */
+    let appData = { properties: [], records: [] };
+
+    let state = {
+      currentPropertyId: null,
+      searchQuery: '',
+      selectedCategory: '전체',
+      onlyWithAmount: false,
+      sortOrder: 'desc', // 'desc' (최신순) | 'asc' (과거순)
+      viewMode: 'timeline', // 'timeline' | 'table'
+      expandedRecordIds: new Set(),
+      // Form helper states
+      formCategory: '입찰/낙찰',
+      formAmountType: 'expense', // 'expense' | 'income'
+      propFormStatus: '명도중'
+    };
+
+    let gistConfig = {
+      token: '',
+      gistId: '',
+      autoSync: false,
+      lastSyncedAt: null
+    };
+
+    let autoSyncTimer = null;
+    let confirmCallback = null;
+
+    /* =========================================================================
+       4. INITIALIZATION & STORAGE
+    ========================================================================= */
+    function initApp() {
+      loadLocalData();
+      loadGistConfig();
+
+      if (!appData.properties || appData.properties.length === 0) {
+        appData = createInitialData();
+        saveLocalData(false);
+      }
+
+      state.currentPropertyId = appData.properties[0].id;
+      updateSyncStatusUI();
+      renderAll();
+    }
+
+    function loadLocalData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.properties) && Array.isArray(parsed.records)) {
+            appData = parsed;
+            return;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load local data:', e);
+      }
+      appData = createInitialData();
+    }
+
+    function saveLocalData(triggerAutoSync = true) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appData));
+      } catch (e) {
+        console.error('Failed to save local data:', e);
+        showToast('로컬 저장 공간이 부족합니다.', 'error');
+      }
+
+      if (triggerAutoSync && gistConfig.token && gistConfig.gistId && gistConfig.autoSync) {
+        clearTimeout(autoSyncTimer);
+        autoSyncTimer = setTimeout(() => {
+          pushToGist(true);
+        }, 1200);
+      }
+    }
+
+    function loadGistConfig() {
+      try {
+        const raw = localStorage.getItem(GIST_CONFIG_KEY);
+        if (raw) {
+          gistConfig = { ...gistConfig, ...JSON.parse(raw) };
+        }
+      } catch (e) {
+        console.error('Failed to load Gist config:', e);
+      }
+    }
+
+    function saveGistConfig() {
+      try {
+        localStorage.setItem(GIST_CONFIG_KEY, JSON.stringify(gistConfig));
+      } catch (e) {
+        console.error('Failed to save Gist config:', e);
+      }
+      updateSyncStatusUI();
+    }
+
+    /* =========================================================================
+       5. UTILITY FUNCTIONS
+    ========================================================================= */
+    function generateId(prefix) {
+      return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+
+    function getTodayDateString() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function formatDisplayDate(dateStr) {
+      if (!dateStr) return '';
+      return dateStr.replace(/-/g, '.');
+    }
+
+    function formatCurrency(num, showSign = false) {
+      if (num === null || num === undefined || isNaN(num)) return '0원';
+      const absStr = Math.abs(Math.round(num)).toLocaleString('ko-KR');
+      if (num < 0) return `-${absStr}원`;
+      if (num > 0 && showSign) return `+${absStr}원`;
+      return `${absStr}원`;
+    }
+
+    function formatCompactCurrency(num) {
+      const abs = Math.abs(num);
+      const sign = num < 0 ? '-' : '';
+      if (abs >= 100000000) {
+        return `${sign}${(abs / 100000000).toFixed(2).replace(/\.?0+$/, '')}억`;
+      }
+      if (abs >= 10000) {
+        return `${sign}${Math.round(abs / 10000).toLocaleString('ko-KR')}만`;
+      }
+      return `${sign}${abs.toLocaleString('ko-KR')}원`;
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function getCategoryMeta(catId) {
+      return CATEGORIES.find(c => c.id === catId) || CATEGORIES[CATEGORIES.length - 1];
+    }
+
+    function getStatusMeta(statusId) {
+      return PROPERTY_STATUSES.find(s => s.id === statusId) || PROPERTY_STATUSES[0];
+    }
+
+    function getCurrentProperty() {
+      return appData.properties.find(p => p.id === state.currentPropertyId) || appData.properties[0];
+    }
+
+    function getPropertyRecords(propertyId) {
+      return appData.records.filter(r => r.propertyId === propertyId);
+    }
+
+    /* =========================================================================
+       6. THEME MANAGEMENT
+    ========================================================================= */
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('auction_log_theme', isDark ? 'dark' : 'light');
+    }
+
+    /* =========================================================================
+       7. MAIN RENDER PIPELINE
+    ========================================================================= */
+    function renderAll() {
+      renderPropertySelector();
+      renderDashboard();
+      renderFilterControls();
+      renderRecords();
+    }
+
+    function renderPropertySelector() {
+      const select = document.getElementById('propertySelect');
+      select.innerHTML = appData.properties.map(p => {
+        const selected = p.id === state.currentPropertyId ? 'selected' : '';
+        return `<option value="${escapeHTML(p.id)}" ${selected}>${escapeHTML(p.name)}</option>`;
+      }).join('');
+
+      const prop = getCurrentProperty();
+      const metaEl = document.getElementById('propertyMeta');
+      if (!prop) {
+        metaEl.innerHTML = '';
+        return;
+      }
+
+      const stMeta = getStatusMeta(prop.status);
+      metaEl.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-1 rounded-lg font-semibold ${stMeta.badge}">${escapeHTML(prop.status)}</span>
+          <span class="text-slate-500 dark:text-zinc-400 font-medium">${escapeHTML(prop.caseNumber)}</span>
+        </div>
+        <div class="text-slate-600 dark:text-zinc-300 font-semibold tabular-nums">
+          낙찰가 ${prop.winningBid ? formatCurrency(prop.winningBid) : '미정'}
+        </div>
+      `;
+    }
+
+    function renderDashboard() {
+      const records = getPropertyRecords(state.currentPropertyId);
+
+      let totalExpense = 0; // stored as positive magnitude for display
+      let totalIncome = 0;
+      const categoryExpenses = {};
+
+      records.forEach(r => {
+        const amt = Number(r.amount) || 0;
+        if (amt < 0) {
+          const abs = Math.abs(amt);
+          totalExpense += abs;
+          categoryExpenses[r.category] = (categoryExpenses[r.category] || 0) + abs;
+        } else if (amt > 0) {
+          totalIncome += amt;
+        }
+      });
+
+      const netInvestment = totalExpense - totalIncome;
+
+      document.getElementById('statCountBadge').textContent = `${records.length}건`;
+      document.getElementById('statNetAmount').textContent = formatCurrency(netInvestment);
+      document.getElementById('statTotalExpense').textContent = totalExpense > 0 ? `-${formatCurrency(totalExpense)}` : '0원';
+      document.getElementById('statTotalIncome').textContent = totalIncome > 0 ? `+${formatCurrency(totalIncome)}` : '0원';
+
+      // Render Category Breakdown
+      const barEl = document.getElementById('categoryProgressBar');
+      const legendEl = document.getElementById('categoryLegend');
+      const breakdownSection = document.getElementById('categoryBreakdownSection');
+
+      if (totalExpense === 0) {
+        breakdownSection.classList.add('hidden');
+        return;
+      }
+      breakdownSection.classList.remove('hidden');
+
+      const sortedCats = Object.entries(categoryExpenses)
+        .sort((a, b) => b[1] - a[1]);
+
+      barEl.innerHTML = sortedCats.map(([catId, val]) => {
+        const meta = getCategoryMeta(catId);
+        const pct = Math.max((val / totalExpense) * 100, 1.5);
+        return `<div style="width:${pct}%; background-color:${meta.color}" title="${catId}: ${formatCurrency(val)}" class="h-full first:rounded-l-full last:rounded-r-full transition-all duration-300"></div>`;
+      }).join('');
+
+      legendEl.innerHTML = sortedCats.map(([catId, val]) => {
+        const meta = getCategoryMeta(catId);
+        const pct = ((val / totalExpense) * 100).toFixed(1);
+        return `
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-2 h-2 rounded-full shrink-0" style="background-color:${meta.color}"></span>
+              <span class="text-slate-600 dark:text-zinc-300 font-medium truncate">${escapeHTML(catId)}</span>
+              <span class="text-[11px] text-slate-400 dark:text-zinc-500 tabular-nums">${pct}%</span>
+            </div>
+            <span class="font-semibold text-slate-800 dark:text-zinc-200 tabular-nums shrink-0">${formatCurrency(val)}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderFilterControls() {
+      // Category Filter Chips
+      const chipContainer = document.getElementById('categoryFilterChips');
+      const allChips = ['전체', ...CATEGORIES.map(c => c.id)];
+
+      chipContainer.innerHTML = allChips.map(cat => {
+        const active = state.selectedCategory === cat;
+        const cls = active
+          ? 'bg-slate-900 dark:bg-white text-white dark:text-zinc-900 border-slate-900 dark:border-white shadow-xs'
+          : 'bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border-slate-200/80 dark:border-zinc-700/80 hover:bg-slate-50 dark:hover:bg-zinc-800';
+        return `
+          <button onclick="selectCategoryFilter('${cat}')"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap shrink-0 ${cls}">
+            ${escapeHTML(cat)}
+          </button>
+        `;
+      }).join('');
+
+      // Only Amount Button state
+      const onlyBtn = document.getElementById('onlyAmountBtn');
+      if (state.onlyWithAmount) {
+        onlyBtn.className = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap bg-brand-50 dark:bg-blue-500/15 border-brand-500/40 text-brand-600 dark:text-blue-400';
+      } else {
+        onlyBtn.className = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap bg-slate-50 dark:bg-zinc-800/80 border-slate-200/80 dark:border-zinc-700/70 text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-700/80';
+      }
+
+      // Sort Order Button
+      document.getElementById('sortOrderLabel').textContent = state.sortOrder === 'desc' ? '최신순' : '과거순';
+
+      // View Mode Toggle Buttons
+      const tlBtn = document.getElementById('viewTimelineBtn');
+      const tbBtn = document.getElementById('viewTableBtn');
+      const activeViewCls = 'bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-xs';
+      const inactiveViewCls = 'text-slate-500 dark:text-zinc-400 hover:text-slate-700 dark:hover:text-zinc-200';
+
+      tlBtn.className = `px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${state.viewMode === 'timeline' ? activeViewCls : inactiveViewCls}`;
+      tbBtn.className = `px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${state.viewMode === 'table' ? activeViewCls : inactiveViewCls}`;
+    }
+
+    function getFilteredRecords() {
+      const q = state.searchQuery.trim().toLowerCase();
+      let list = getPropertyRecords(state.currentPropertyId);
+
+      if (state.selectedCategory !== '전체') {
+        list = list.filter(r => r.category === state.selectedCategory);
+      }
+      if (state.onlyWithAmount) {
+        list = list.filter(r => Number(r.amount) !== 0);
+      }
+      if (q) {
+        list = list.filter(r =>
+          (r.title && r.title.toLowerCase().includes(q)) ||
+          (r.memo && r.memo.toLowerCase().includes(q)) ||
+          (r.category && r.category.toLowerCase().includes(q)) ||
+          (r.date && r.date.includes(q))
+        );
+      }
+
+      // Sort by date, preserving stable relative order for same dates
+      list.sort((a, b) => {
+        if (a.date === b.date) {
+          return state.sortOrder === 'desc'
+            ? b.id.localeCompare(a.id)
+            : a.id.localeCompare(b.id);
+        }
+        return state.sortOrder === 'desc'
+          ? b.date.localeCompare(a.date)
+          : a.date.localeCompare(b.date);
+      });
+
+      return list;
+    }
+
+    function renderRecords() {
+      const container = document.getElementById('recordsContainer');
+      const filtered = getFilteredRecords();
+      const isFiltered = state.searchQuery.trim() !== '' || state.selectedCategory !== '전체' || state.onlyWithAmount;
+
+      // Update Filtered Banner
+      const banner = document.getElementById('filteredBanner');
+      if (isFiltered) {
+        banner.classList.remove('hidden');
+        banner.classList.add('flex');
+        const sum = filtered.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+        document.getElementById('filteredCount').textContent = filtered.length;
+        const sumEl = document.getElementById('filteredSum');
+        sumEl.textContent = formatCurrency(sum, true);
+        sumEl.className = `tabular-nums ${sum < 0 ? 'text-blue-600 dark:text-blue-400' : sum > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-zinc-300'}`;
+      } else {
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+      }
+
+      // Empty State
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200/75 dark:border-zinc-800 p-10 text-center space-y-3">
+            <div class="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-zinc-800 text-slate-400 dark:text-zinc-500 mx-auto flex items-center justify-center">
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="9" y1="15" x2="15" y2="15"></line>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-bold text-slate-800 dark:text-zinc-200">${isFiltered ? '검색 조건에 맞는 기록이 없습니다' : '아직 작성된 경매 기록이 없습니다'}</p>
+              <p class="text-xs text-slate-400 dark:text-zinc-500 mt-1">${isFiltered ? '다른 검색어나 필터를 선택해 보세요.' : '우측 상단 또는 하단 + 버튼을 눌러 첫 기록을 남겨보세요.'}</p>
+            </div>
+            ${isFiltered
+              ? `<button onclick="resetFilters()" class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:bg-slate-200 dark:hover:bg-zinc-700">필터 초기화</button>`
+              : `<button onclick="openRecordModal()" class="inline-flex items-center px-4 py-2 rounded-xl text-xs font-semibold bg-brand-500 text-white hover:bg-brand-600">첫 기록 추가하기</button>`
+            }
+          </div>
+        `;
+        return;
+      }
+
+      if (state.viewMode === 'table') {
+        renderTableView(container, filtered);
+      } else {
+        renderTimelineView(container, filtered);
+      }
+    }
+
+    function renderTimelineView(container, records) {
+      // Group records by YYYY.MM for clean visual timeline pacing
+      const groups = [];
+      let currentMonth = null;
+
+      records.forEach(r => {
+        const ym = r.date ? r.date.slice(0, 7).replace('-', '.') : '날짜 미상';
+        if (ym !== currentMonth) {
+          currentMonth = ym;
+          groups.push({ month: ym, items: [] });
+        }
+        groups[groups.length - 1].items.push(r);
+      });
+
+      container.innerHTML = groups.map(group => {
+        const cardsHtml = group.items.map(r => {
+          const cat = getCategoryMeta(r.category);
+          const amt = Number(r.amount) || 0;
+          const hasMemo = r.memo && r.memo.trim().length > 0;
+          const isLongMemo = hasMemo && (r.memo.split('\n').length > 2 || r.memo.length > 90);
+          const isExpanded = state.expandedRecordIds.has(r.id);
+
+          let amtHtml = '';
+          if (amt < 0) {
+            amtHtml = `<div class="text-sm sm:text-base font-bold text-blue-600 dark:text-blue-400 tabular-nums whitespace-nowrap">${formatCurrency(amt)}</div>`;
+          } else if (amt > 0) {
+            amtHtml = `<div class="text-sm sm:text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums whitespace-nowrap">+${formatCurrency(amt)}</div>`;
+          }
+
+          return `
+            <article onclick="toggleExpandCard('${r.id}')"
+              class="group bg-white dark:bg-zinc-900 rounded-2xl p-4 sm:p-4.5 border border-slate-200/75 dark:border-zinc-800/90 hover:border-slate-300 dark:hover:border-zinc-700 shadow-soft transition-all cursor-pointer">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <!-- Top Meta: Date + Category Badge -->
+                  <div class="flex items-center flex-wrap gap-2 mb-1.5">
+                    <span class="text-xs font-semibold text-slate-400 dark:text-zinc-500 tabular-nums">${formatDisplayDate(r.date)}</span>
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${cat.bg} ${cat.text}">
+                      <span class="w-1.5 h-1.5 rounded-full ${cat.dot}"></span>
+                      ${escapeHTML(r.category)}
+                    </span>
+                  </div>
+                  <!-- Title -->
+                  <h3 class="text-[15px] font-bold text-slate-900 dark:text-zinc-100 leading-snug break-keep">
+                    ${escapeHTML(r.title)}
+                  </h3>
+                </div>
+
+                <!-- Right Side: Amount & Action Buttons -->
+                <div class="flex flex-col items-end gap-1.5 shrink-0">
+                  ${amtHtml}
+                  <div class="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity" onclick="event.stopPropagation()">
+                    <button onclick="openRecordModal('${r.id}')" title="수정"
+                      class="p-1.5 rounded-lg text-slate-400 hover:text-brand-500 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                    </button>
+                    <button onclick="confirmDeleteRecord('${r.id}')" title="삭제"
+                      class="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors">
+                      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Memo Area -->
+              ${hasMemo ? `
+                <div class="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-zinc-800/80">
+                  <p class="text-[13px] text-slate-600 dark:text-zinc-400 whitespace-pre-line leading-relaxed ${isLongMemo && !isExpanded ? 'line-clamp-2' : ''}">${escapeHTML(r.memo)}</p>
+                  ${isLongMemo ? `
+                    <div class="mt-1.5 text-[11px] font-semibold text-brand-500 dark:text-blue-400 flex items-center gap-0.5">
+                      <span>${isExpanded ? '접기' : '더 보기'}</span>
+                      <svg class="w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
+            </article>
+          `;
+        }).join('');
+
+        return `
+          <div class="space-y-2.5">
+            <div class="flex items-center gap-2 px-1 pt-1">
+              <span class="text-xs font-bold text-slate-400 dark:text-zinc-500 tabular-nums">${group.month}</span>
+              <div class="h-px flex-1 bg-slate-200/70 dark:bg-zinc-800/80"></div>
+              <span class="text-[11px] font-medium text-slate-400 dark:text-zinc-500 tabular-nums">${group.items.length}건</span>
+            </div>
+            <div class="space-y-2.5">
+              ${cardsHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderTableView(container, records) {
+      const rowsHtml = records.map(r => {
+        const cat = getCategoryMeta(r.category);
+        const amt = Number(r.amount) || 0;
+        let amtCell = '<span class="text-slate-300 dark:text-zinc-700">-</span>';
+        if (amt < 0) {
+          amtCell = `<span class="font-bold text-blue-600 dark:text-blue-400 tabular-nums">${formatCurrency(amt)}</span>`;
+        } else if (amt > 0) {
+          amtCell = `<span class="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+${formatCurrency(amt)}</span>`;
+        }
+
+        return `
+          <tr onclick="openRecordModal('${r.id}')"
+            class="border-b border-slate-100 dark:border-zinc-800/80 hover:bg-slate-50/90 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer">
+            <td class="py-3 px-3.5 text-xs font-medium text-slate-500 dark:text-zinc-400 whitespace-nowrap tabular-nums align-top">
+              ${formatDisplayDate(r.date)}
+            </td>
+            <td class="py-3 px-3 whitespace-nowrap align-top">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold ${cat.bg} ${cat.text}">
+                ${escapeHTML(r.category)}
+              </span>
+            </td>
+            <td class="py-3 px-3 text-[13px] font-semibold text-slate-900 dark:text-zinc-100 min-w-[160px] align-top">
+              ${escapeHTML(r.title)}
+            </td>
+            <td class="py-3 px-3 text-[13px] text-right whitespace-nowrap align-top">
+              ${amtCell}
+            </td>
+            <td class="py-3 px-3.5 text-xs text-slate-600 dark:text-zinc-400 min-w-[240px] max-w-md whitespace-pre-line leading-relaxed align-top">
+              ${escapeHTML(r.memo)}
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200/75 dark:border-zinc-800 shadow-soft overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50/90 dark:bg-zinc-800/70 border-b border-slate-200/80 dark:border-zinc-800 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
+                  <th class="py-3 px-3.5 whitespace-nowrap">날짜</th>
+                  <th class="py-3 px-3 whitespace-nowrap">카테고리</th>
+                  <th class="py-3 px-3 whitespace-nowrap">내용</th>
+                  <th class="py-3 px-3 text-right whitespace-nowrap">금액</th>
+                  <th class="py-3 px-3.5 whitespace-nowrap">비고 (클릭 시 수정)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    /* =========================================================================
+       8. FILTERING, SORTING & VIEW INTERACTIONS
+    ========================================================================= */
+    function selectProperty(propId) {
+      state.currentPropertyId = propId;
+      state.expandedRecordIds.clear();
+      renderAll();
+    }
+
+    function handleSearch(val) {
+      state.searchQuery = val;
+      document.getElementById('clearSearchBtn').classList.toggle('hidden', !val);
+      renderRecords();
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      handleSearch('');
+    }
+
+    function selectCategoryFilter(cat) {
+      state.selectedCategory = cat;
+      renderFilterControls();
+      renderRecords();
+    }
+
+    function toggleOnlyAmount() {
+      state.onlyWithAmount = !state.onlyWithAmount;
+      renderFilterControls();
+      renderRecords();
+    }
+
+    function toggleSortOrder() {
+      state.sortOrder = state.sortOrder === 'desc' ? 'asc' : 'desc';
+      renderFilterControls();
+      renderRecords();
+    }
+
+    function setViewMode(mode) {
+      state.viewMode = mode;
+      renderFilterControls();
+      renderRecords();
+    }
+
+    function resetFilters() {
+      state.searchQuery = '';
+      state.selectedCategory = '전체';
+      state.onlyWithAmount = false;
+      document.getElementById('searchInput').value = '';
+      document.getElementById('clearSearchBtn').classList.add('hidden');
+      renderFilterControls();
+      renderRecords();
+    }
+
+    function toggleExpandCard(recordId) {
+      if (state.expandedRecordIds.has(recordId)) {
+        state.expandedRecordIds.delete(recordId);
+      } else {
+        state.expandedRecordIds.add(recordId);
+      }
+      renderRecords();
+    }
+
+    /* =========================================================================
+       9. MODAL ANIMATION HELPERS (Bottom Sheet on Mobile, Dialog on Desktop)
+    ========================================================================= */
+    function openSheetModal(modalId) {
+      const modal = document.getElementById(modalId);
+      const backdrop = document.getElementById(`${modalId}Backdrop`);
+      const panel = document.getElementById(`${modalId}Panel`);
+
+      modal.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+
+      requestAnimationFrame(() => {
+        backdrop.classList.remove('opacity-0');
+        panel.classList.remove('translate-y-full', 'sm:translate-y-4', 'sm:opacity-0');
+      });
+    }
+
+    function closeSheetModal(modalId) {
+      const modal = document.getElementById(modalId);
+      const backdrop = document.getElementById(`${modalId}Backdrop`);
+      const panel = document.getElementById(`${modalId}Panel`);
+
+      backdrop.classList.add('opacity-0');
+      panel.classList.add('translate-y-full', 'sm:translate-y-4', 'sm:opacity-0');
+
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }, 240);
+    }
+
+    /* =========================================================================
+       10. RECORD ADD / EDIT / DELETE LOGIC
+    ========================================================================= */
+    function renderRecordCategoryChips() {
+      const container = document.getElementById('recCategoryChips');
+      container.innerHTML = CATEGORIES.map(cat => {
+        const active = state.formCategory === cat.id;
+        const cls = active
+          ? 'bg-brand-500 text-white border-brand-500 shadow-xs'
+          : 'bg-slate-50 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-700';
+        return `
+          <button type="button" onclick="selectFormCategory('${cat.id}')"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${cls}">
+            ${escapeHTML(cat.id)}
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectFormCategory(catId) {
+      state.formCategory = catId;
+      renderRecordCategoryChips();
+    }
+
+    function quickSetTitle(text) {
+      document.getElementById('recTitle').value = text;
+      // Smartly match category for convenience
+      if (text.includes('임차인')) selectFormCategory('명도/임차인');
+      else if (text.includes('서류') || text.includes('법무사')) selectFormCategory('법무/서류');
+      else if (text.includes('이자')) selectFormCategory('이자/유지비');
+    }
+
+    function setAmountType(type) {
+      state.formAmountType = type;
+      const expBtn = document.getElementById('amtTypeExpense');
+      const incBtn = document.getElementById('amtTypeIncome');
+      const prefix = document.getElementById('amtSignPrefix');
+
+      if (type === 'expense') {
+        expBtn.className = 'px-2.5 py-1 rounded-md text-xs font-semibold transition-all bg-white dark:bg-zinc-900 text-blue-600 dark:text-blue-400 shadow-xs';
+        incBtn.className = 'px-2.5 py-1 rounded-md text-xs font-semibold transition-all text-slate-500 dark:text-zinc-400';
+        prefix.textContent = '-';
+        prefix.className = 'absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-blue-600 dark:text-blue-400';
+      } else {
+        incBtn.className = 'px-2.5 py-1 rounded-md text-xs font-semibold transition-all bg-white dark:bg-zinc-900 text-emerald-600 dark:text-emerald-400 shadow-xs';
+        expBtn.className = 'px-2.5 py-1 rounded-md text-xs font-semibold transition-all text-slate-500 dark:text-zinc-400';
+        prefix.textContent = '+';
+        prefix.className = 'absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-emerald-600 dark:text-emerald-400';
+      }
+    }
+
+    function parseFormattedNumber(str) {
+      const digits = String(str || '').replace(/[^0-9]/g, '');
+      return digits ? parseInt(digits, 10) : 0;
+    }
+
+    function handleAmountInput(input) {
+      const val = parseFormattedNumber(input.value);
+      input.value = val > 0 ? val.toLocaleString('ko-KR') : '';
+    }
+
+    function formatNumberInput(input) {
+      const val = parseFormattedNumber(input.value);
+      input.value = val > 0 ? val.toLocaleString('ko-KR') : '';
+    }
+
+    function addQuickAmount(delta) {
+      const input = document.getElementById('recAmount');
+      const current = parseFormattedNumber(input.value);
+      const next = current + delta;
+      input.value = next.toLocaleString('ko-KR');
+    }
+
+    function clearQuickAmount() {
+      document.getElementById('recAmount').value = '';
+    }
+
+    function openRecordModal(recordId = null) {
+      const isEdit = Boolean(recordId);
+      document.getElementById('recordModalTitle').textContent = isEdit ? '경매 기록 수정' : '새 경매 기록';
+      document.getElementById('deleteRecordModalBtn').classList.toggle('hidden', !isEdit);
+
+      if (isEdit) {
+        const rec = appData.records.find(r => r.id === recordId);
+        if (!rec) return;
+        document.getElementById('recId').value = rec.id;
+        document.getElementById('recDate').value = rec.date || getTodayDateString();
+        document.getElementById('recTitle').value = rec.title || '';
+        document.getElementById('recMemo').value = rec.memo || '';
+        state.formCategory = rec.category || '기타';
+
+        const amt = Number(rec.amount) || 0;
+        if (amt > 0) {
+          setAmountType('income');
+          document.getElementById('recAmount').value = amt.toLocaleString('ko-KR');
+        } else if (amt < 0) {
+          setAmountType('expense');
+          document.getElementById('recAmount').value = Math.abs(amt).toLocaleString('ko-KR');
+        } else {
+          setAmountType('expense');
+          document.getElementById('recAmount').value = '';
+        }
+      } else {
+        document.getElementById('recId').value = '';
+        document.getElementById('recDate').value = getTodayDateString();
+        document.getElementById('recTitle').value = '';
+        document.getElementById('recAmount').value = '';
+        document.getElementById('recMemo').value = '';
+        state.formCategory = state.selectedCategory !== '전체' ? state.selectedCategory : '명도/임차인';
+        setAmountType('expense');
+      }
+
+      renderRecordCategoryChips();
+      openSheetModal('recordModal');
+    }
+
+    function closeRecordModal() {
+      closeSheetModal('recordModal');
+    }
+
+    function saveRecord(event) {
+      event.preventDefault();
+      const id = document.getElementById('recId').value;
+      const date = document.getElementById('recDate').value;
+      const title = document.getElementById('recTitle').value.trim();
+      const memo = document.getElementById('recMemo').value.trim();
+      const rawAmt = parseFormattedNumber(document.getElementById('recAmount').value);
+      const amount = rawAmt === 0 ? 0 : (state.formAmountType === 'expense' ? -rawAmt : rawAmt);
+
+      if (!date || !title) {
+        showToast('날짜와 내용을 입력해 주세요.', 'error');
+        return;
+      }
+
+      if (id) {
+        const idx = appData.records.findIndex(r => r.id === id);
+        if (idx !== -1) {
+          appData.records[idx] = {
+            ...appData.records[idx],
+            date,
+            category: state.formCategory,
+            title,
+            amount,
+            memo
+          };
+        }
+        showToast('기록이 수정되었습니다.');
+      } else {
+        appData.records.push({
+          id: generateId('rec'),
+          propertyId: state.currentPropertyId,
+          date,
+          category: state.formCategory,
+          title,
+          amount,
+          memo
+        });
+        showToast('새 기록이 추가되었습니다.');
+      }
+
+      saveLocalData(true);
+      closeRecordModal();
+      renderAll();
+    }
+
+    function confirmDeleteRecord(recordId) {
+      const rec = appData.records.find(r => r.id === recordId);
+      if (!rec) return;
+      openConfirmModal(
+        '기록 삭제',
+        `'${rec.title}' 기록을 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.`,
+        () => {
+          appData.records = appData.records.filter(r => r.id !== recordId);
+          saveLocalData(true);
+          renderAll();
+          showToast('기록이 삭제되었습니다.');
+        }
+      );
+    }
+
+    function confirmDeleteRecordFromModal() {
+      const id = document.getElementById('recId').value;
+      if (!id) return;
+      closeRecordModal();
+      setTimeout(() => confirmDeleteRecord(id), 250);
+    }
+
+    /* =========================================================================
+       11. PROPERTY ADD / EDIT / DELETE LOGIC
+    ========================================================================= */
+    function renderPropertyStatusChips() {
+      const container = document.getElementById('propStatusChips');
+      container.innerHTML = PROPERTY_STATUSES.map(st => {
+        const active = state.propFormStatus === st.id;
+        const cls = active
+          ? 'bg-brand-500 text-white border-brand-500 shadow-xs'
+          : 'bg-slate-50 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:bg-slate-100 dark:hover:bg-zinc-700';
+        return `
+          <button type="button" onclick="selectPropStatus('${st.id}')"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${cls}">
+            ${escapeHTML(st.id)}
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectPropStatus(statusId) {
+      state.propFormStatus = statusId;
+      renderPropertyStatusChips();
+    }
+
+    function openPropertyModal(propId = null) {
+      const isEdit = Boolean(propId);
+      document.getElementById('propertyModalTitle').textContent = isEdit ? '물건 정보 수정' : '새 물건 등록';
+      document.getElementById('deletePropBtn').classList.toggle('hidden', !isEdit || appData.properties.length <= 1);
+
+      if (isEdit) {
+        const prop = appData.properties.find(p => p.id === propId);
+        if (!prop) return;
+        document.getElementById('propId').value = prop.id;
+        document.getElementById('propCaseNumber').value = prop.caseNumber || '';
+        document.getElementById('propName').value = prop.name || '';
+        document.getElementById('propWinningBid').value = prop.winningBid ? prop.winningBid.toLocaleString('ko-KR') : '';
+        state.propFormStatus = prop.status || '입찰준비';
+      } else {
+        document.getElementById('propId').value = '';
+        document.getElementById('propCaseNumber').value = '';
+        document.getElementById('propName').value = '';
+        document.getElementById('propWinningBid').value = '';
+        state.propFormStatus = '입찰준비';
+      }
+
+      renderPropertyStatusChips();
+      openSheetModal('propertyModal');
+    }
+
+    function closePropertyModal() {
+      closeSheetModal('propertyModal');
+    }
+
+    function saveProperty(event) {
+      event.preventDefault();
+      const id = document.getElementById('propId').value;
+      const caseNumber = document.getElementById('propCaseNumber').value.trim();
+      const name = document.getElementById('propName').value.trim();
+      const winningBid = parseFormattedNumber(document.getElementById('propWinningBid').value);
+
+      if (!caseNumber || !name) {
+        showToast('사건번호와 물건명을 입력해 주세요.', 'error');
+        return;
+      }
+
+      if (id) {
+        const idx = appData.properties.findIndex(p => p.id === id);
+        if (idx !== -1) {
+          appData.properties[idx] = {
+            ...appData.properties[idx],
+            caseNumber,
+            name,
+            winningBid,
+            status: state.propFormStatus
+          };
+        }
+        showToast('물건 정보가 수정되었습니다.');
+      } else {
+        const newProp = {
+          id: generateId('prop'),
+          caseNumber,
+          name,
+          winningBid,
+          status: state.propFormStatus,
+          createdAt: new Date().toISOString()
+        };
+        appData.properties.push(newProp);
+        state.currentPropertyId = newProp.id;
+        showToast('새 물건이 등록되었습니다.');
+      }
+
+      saveLocalData(true);
+      closePropertyModal();
+      renderAll();
+    }
+
+    function confirmDeleteProperty() {
+      const id = document.getElementById('propId').value;
+      if (!id || appData.properties.length <= 1) return;
+      const prop = appData.properties.find(p => p.id === id);
+      closePropertyModal();
+
+      setTimeout(() => {
+        openConfirmModal(
+          '물건 삭제',
+          `'${prop.name}' 물건과 해당 물건의 모든 기록이 함께 삭제됩니다. 계속할까요?`,
+          () => {
+            appData.properties = appData.properties.filter(p => p.id !== id);
+            appData.records = appData.records.filter(r => r.propertyId !== id);
+            state.currentPropertyId = appData.properties[0].id;
+            saveLocalData(true);
+            renderAll();
+            showToast('물건이 삭제되었습니다.');
+          }
+        );
+      }, 250);
+    }
+
+    /* =========================================================================
+       12. SETTINGS & GITHUB GIST CLOUD SYNC (REAL REST API)
+    ========================================================================= */
+    function openSettingsModal() {
+      document.getElementById('gistTokenInput').value = gistConfig.token || '';
+      document.getElementById('gistIdInput').value = gistConfig.gistId || '';
+      document.getElementById('gistAutoSyncCheck').checked = Boolean(gistConfig.autoSync);
+      updateSyncStatusUI();
+      openSheetModal('settingsModal');
+    }
+
+    function closeSettingsModal() {
+      closeSheetModal('settingsModal');
+    }
+
+    function updateSyncStatusUI() {
+      const dot = document.getElementById('syncStatusDot');
+      const label = document.getElementById('syncStatusLabel');
+      const badge = document.getElementById('gistConnBadge');
+      const lastText = document.getElementById('gistLastSyncedText');
+
+      const connected = Boolean(gistConfig.token && gistConfig.gistId);
+      if (connected) {
+        dot.className = 'w-2 h-2 rounded-full bg-emerald-500';
+        label.textContent = gistConfig.autoSync ? '자동 동기화' : 'Gist 연결됨';
+        badge.textContent = '연결됨';
+        badge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400';
+      } else {
+        dot.className = 'w-2 h-2 rounded-full bg-slate-300 dark:bg-zinc-600';
+        label.textContent = '로컬 저장';
+        badge.textContent = '미연결';
+        badge.className = 'text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-500 dark:text-zinc-400';
+      }
+
+      if (gistConfig.lastSyncedAt) {
+        const d = new Date(gistConfig.lastSyncedAt);
+        lastText.textContent = `마지막 동기화: ${d.toLocaleString('ko-KR')}`;
+      } else {
+        lastText.textContent = '마지막 동기화: 없음';
+      }
+    }
+
+    function saveGistAutoSync(checked) {
+      gistConfig.autoSync = checked;
+      saveGistConfig();
+      showToast(checked ? '자동 클라우드 저장이 켜졌습니다.' : '자동 클라우드 저장이 꺼졌습니다.');
+    }
+
+    async function connectGist() {
+      const token = document.getElementById('gistTokenInput').value.trim();
+      const inputGistId = document.getElementById('gistIdInput').value.trim();
+
+      if (!token) {
+        showToast('GitHub Personal Access Token을 입력해 주세요.', 'error');
+        return;
+      }
+
+      try {
+        showToast('GitHub Gist에 연결 중...', 'info');
+
+        // Case A: Existing Gist ID provided -> Verify & Pull or Link
+        if (inputGistId) {
+          const res = await fetch(`https://api.github.com/gists/${encodeURIComponent(inputGistId)}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Accept': 'application/vnd.github+json'
+            }
+          });
+
+          if (!res.ok) {
+            throw new Error(`Gist를 찾을 수 없거나 토큰 권한이 부족합니다 (HTTP ${res.status})`);
+          }
+
+          const gist = await res.json();
+          gistConfig.token = token;
+          gistConfig.gistId = gist.id;
+          gistConfig.lastSyncedAt = new Date().toISOString();
+          saveGistConfig();
+
+          // If the gist already has our data file, load it
+          if (gist.files && gist.files[GIST_FILENAME] && gist.files[GIST_FILENAME].content) {
+            const remoteData = JSON.parse(gist.files[GIST_FILENAME].content);
+            if (remoteData.properties && remoteData.records) {
+              appData = remoteData;
+              state.currentPropertyId = appData.properties[0]?.id || null;
+              saveLocalData(false);
+              renderAll();
+              showToast('기존 Gist와 연결하고 데이터를 불러왔습니다!');
+              return;
+            }
+          }
+          showToast('Gist에 연결되었습니다. "클라우드 저장"을 눌러 데이터를 올려주세요.');
+          return;
+        }
+
+        // Case B: No Gist ID -> Create a new secret Gist automatically
+        const createRes = await fetch('https://api.github.com/gists', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            description: '경매 일지 (Auction Log) 동기화 데이터',
+            public: false,
+            files: {
+              [GIST_FILENAME]: {
+                content: JSON.stringify(appData, null, 2)
+              }
+            }
+          })
+        });
+
+        if (!createRes.ok) {
+          throw new Error(`Gist 생성 실패 (HTTP ${createRes.status}). 토큰에 gist 권한이 있는지 확인하세요.`);
+        }
+
+        const created = await createRes.json();
+        gistConfig.token = token;
+        gistConfig.gistId = created.id;
+        gistConfig.lastSyncedAt = new Date().toISOString();
+        saveGistConfig();
+        document.getElementById('gistIdInput').value = created.id;
+
+        showToast('비공개 Gist가 생성되어 동기화가 연결되었습니다!');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Gist 연결 중 오류가 발생했습니다.', 'error');
+      }
+    }
+
+    async function pushToGist(silent = false) {
+      const token = (document.getElementById('gistTokenInput').value || gistConfig.token || '').trim();
+      const gistId = (document.getElementById('gistIdInput').value || gistConfig.gistId || '').trim();
+
+      if (!token || !gistId) {
+        if (!silent) showToast('먼저 토큰을 입력하고 "동기화 연결"을 진행해 주세요.', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`https://api.github.com/gists/${encodeURIComponent(gistId)}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            files: {
+              [GIST_FILENAME]: {
+                content: JSON.stringify(appData, null, 2)
+              }
+            }
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error(`클라우드 저장 실패 (HTTP ${res.status})`);
+        }
+
+        gistConfig.token = token;
+        gistConfig.gistId = gistId;
+        gistConfig.lastSyncedAt = new Date().toISOString();
+        saveGistConfig();
+
+        if (!silent) showToast('클라우드(Gist)에 안전하게 저장되었습니다.');
+      } catch (err) {
+        console.error(err);
+        if (!silent) showToast(err.message || '클라우드 저장에 실패했습니다.', 'error');
+      }
+    }
+
+    async function pullFromGist() {
+      const token = (document.getElementById('gistTokenInput').value || gistConfig.token || '').trim();
+      const gistId = (document.getElementById('gistIdInput').value || gistConfig.gistId || '').trim();
+
+      if (!token || !gistId) {
+        showToast('토큰과 Gist ID를 먼저 입력해 주세요.', 'error');
+        return;
+      }
+
+      try {
+        showToast('클라우드에서 데이터를 불러오는 중...', 'info');
+        const res = await fetch(`https://api.github.com/gists/${encodeURIComponent(gistId)}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github+json'
+          }
+        });
+
+        if (!res.ok) {
+          throw new Error(`불러오기 실패 (HTTP ${res.status})`);
+        }
+
+        const gist = await res.json();
+        const fileObj = gist.files && gist.files[GIST_FILENAME];
+        if (!fileObj || !fileObj.content) {
+          throw new Error('Gist에 저장된 경매 일지 데이터가 없습니다.');
+        }
+
+        const parsed = JSON.parse(fileObj.content);
+        if (!Array.isArray(parsed.properties) || !Array.isArray(parsed.records)) {
+          throw new Error('데이터 형식이 올바르지 않습니다.');
+        }
+
+        appData = parsed;
+        if (!appData.properties.some(p => p.id === state.currentPropertyId)) {
+          state.currentPropertyId = appData.properties[0]?.id || null;
+        }
+
+        gistConfig.token = token;
+        gistConfig.gistId = gistId;
+        gistConfig.lastSyncedAt = new Date().toISOString();
+        saveGistConfig();
+        saveLocalData(false);
+        renderAll();
+
+        showToast('클라우드 데이터를 성공적으로 불러왔습니다!');
+      } catch (err) {
+        console.error(err);
+        showToast(err.message || '불러오기 중 오류가 발생했습니다.', 'error');
+      }
+    }
+
+    function disconnectGist() {
+      gistConfig = { token: '', gistId: '', autoSync: false, lastSyncedAt: null };
+      saveGistConfig();
+      document.getElementById('gistTokenInput').value = '';
+      document.getElementById('gistIdInput').value = '';
+      document.getElementById('gistAutoSyncCheck').checked = false;
+      showToast('GitHub Gist 연결이 해제되었습니다.');
+    }
+
+    function copyGistId() {
+      const val = document.getElementById('gistIdInput').value.trim();
+      if (!val) {
+        showToast('복사할 Gist ID가 없습니다.', 'error');
+        return;
+      }
+      const textarea = document.createElement('textarea');
+      textarea.value = val;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        showToast('Gist ID가 클립보드에 복사되었습니다.');
+      } catch (e) {
+        showToast('복사에 실패했습니다.', 'error');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    /* =========================================================================
+       13. CSV & JSON EXPORT / IMPORT
+    ========================================================================= */
+    function exportCSV() {
+      const prop = getCurrentProperty();
+      const records = getPropertyRecords(state.currentPropertyId)
+        .slice()
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      const escapeCSV = (val) => {
+        const s = String(val ?? '');
+        if (/[",\n\r]/.test(s)) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+
+      const headers = ['날짜', '카테고리', '내용', '금액', '비고'];
+      const rows = records.map(r => [
+        formatDisplayDate(r.date),
+        r.category,
+        r.title,
+        Number(r.amount) === 0 ? '' : r.amount,
+        r.memo || ''
+      ].map(escapeCSV).join(','));
+
+      // UTF-8 BOM included so Excel & Google Sheets display Korean cleanly
+      const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const filename = `경매일지_${prop ? prop.caseNumber : 'export'}_${getTodayDateString()}.csv`;
+      triggerFileDownload(blob, filename);
+      showToast('CSV 파일이 다운로드되었습니다.');
+    }
+
+    function exportJSON() {
+      const blob = new Blob([JSON.stringify(appData, null, 2)], { type: 'application/json' });
+      const filename = `auction-log-backup_${getTodayDateString()}.json`;
+      triggerFileDownload(blob, filename);
+      showToast('JSON 백업 파일이 다운로드되었습니다.');
+    }
+
+    function importJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!Array.isArray(parsed.properties) || !Array.isArray(parsed.records) || parsed.properties.length === 0) {
+            throw new Error('올바른 경매 일지 백업 파일이 아닙니다.');
+          }
+          openConfirmModal(
+            '백업 파일 복원',
+            `파일에서 물건 ${parsed.properties.length}개, 기록 ${parsed.records.length}건을 불러와 현재 데이터를 덮어쓸까요?`,
+            () => {
+              appData = parsed;
+              state.currentPropertyId = appData.properties[0].id;
+              saveLocalData(true);
+              renderAll();
+              closeSettingsModal();
+              showToast('백업 데이터를 복원했습니다.');
+            }
+          );
+        } catch (err) {
+          showToast(err.message || '파일을 읽을 수 없습니다.', 'error');
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function confirmResetSampleData() {
+      openConfirmModal(
+        '샘플 데이터 초기화',
+        '현재 저장된 모든 물건과 기록을 지우고 초기 샘플 데이터로 되돌릴까요?',
+        () => {
+          appData = createInitialData();
+          state.currentPropertyId = appData.properties[0].id;
+          resetFilters();
+          saveLocalData(true);
+          renderAll();
+          closeSettingsModal();
+          showToast('초기 샘플 데이터로 복원되었습니다.');
+        }
+      );
+    }
+
+    function triggerFileDownload(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    /* =========================================================================
+       14. CONFIRM DIALOG & TOAST SYSTEM (No alert/confirm)
+    ========================================================================= */
+    function openConfirmModal(title, message, onConfirm) {
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMessage').textContent = message;
+      confirmCallback = onConfirm;
+      document.getElementById('confirmModal').classList.remove('hidden');
+    }
+
+    function closeConfirmModal() {
+      document.getElementById('confirmModal').classList.add('hidden');
+      confirmCallback = null;
+    }
+
+    document.getElementById('confirmOkBtn').addEventListener('click', () => {
+      if (typeof confirmCallback === 'function') {
+        confirmCallback();
+      }
+      closeConfirmModal();
+    });
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+
+      const colors = {
+        success: 'bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900',
+        error: 'bg-rose-600 text-white',
+        info: 'bg-brand-600 text-white'
+      };
+
+      toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-lg transition-all duration-300 translate-y-2 opacity-0 ${colors[type] || colors.success}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-2', 'opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 2800);
+    }
+
+    /* =========================================================================
+       15. BOOTSTRAP ON LOAD
+    ========================================================================= */
+    window.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>
