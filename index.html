@@ -192,7 +192,10 @@
         <!-- Property Selector Card -->
         <section class="bg-white dark:bg-zinc-900 rounded-2xl p-4 sm:p-5 border border-slate-200/75 dark:border-zinc-800 shadow-soft">
           <div class="flex items-center justify-between gap-2 mb-3">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">관리 물건</span>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-zinc-500">관리 물건</span>
+              <span id="propertyCountBadge" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 tabular-nums">총 0건</span>
+            </div>
             <button onclick="openPropertyModal()"
               class="inline-flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-600 dark:text-blue-400 px-2 py-1 rounded-lg hover:bg-brand-50 dark:hover:bg-blue-500/10 transition-colors">
               <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -202,8 +205,30 @@
             </button>
           </div>
 
-          <!-- Dropdown & Edit Button -->
-          <div class="flex items-center gap-2">
+          <!-- Property Search Input & Status Filter Pills -->
+          <div class="space-y-2 mb-3">
+            <div class="relative">
+              <svg class="w-3.5 h-3.5 text-slate-400 dark:text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input id="propertySearchInput" type="text" placeholder="사건번호, 물건명, 기록 내용 검색..." oninput="handlePropertySearch(this.value)"
+                class="w-full bg-slate-50 dark:bg-zinc-800/80 border border-slate-200/80 dark:border-zinc-700/70 rounded-xl pl-8 pr-8 py-2 text-xs font-medium text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all" />
+              <button id="clearPropertySearchBtn" type="button" onclick="clearPropertySearch()" aria-label="물건 검색어 지우기"
+                class="hidden absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Property Status Filter Chips -->
+            <div id="propertyStatusFilterChips" class="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0.5">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+
+          <!-- Dropdown & Edit Button (Desktop & Mobile Quick Select) -->
+          <div id="propertySelectRow" class="flex items-center gap-2">
             <div class="relative flex-1 min-w-0">
               <select id="propertySelect" onchange="selectProperty(this.value)"
                 class="w-full appearance-none bg-slate-50 dark:bg-zinc-800/90 border border-slate-200 dark:border-zinc-700/80 text-slate-900 dark:text-white font-semibold text-sm sm:text-[15px] rounded-xl pl-3.5 pr-9 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 transition-all truncate cursor-pointer">
@@ -218,6 +243,19 @@
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
               </svg>
+            </button>
+          </div>
+
+          <!-- Filtered Property Quick List (Shown when searching/filtering or multiple properties exist) -->
+          <div id="propertyQuickList" class="mt-2.5 max-h-44 overflow-y-auto space-y-1.5">
+            <!-- Populated by JS -->
+          </div>
+
+          <!-- Empty Property Search State -->
+          <div id="propertyEmptyState" class="hidden mt-2 py-4 px-3 rounded-xl bg-slate-50 dark:bg-zinc-800/60 border border-dashed border-slate-200 dark:border-zinc-700 text-center space-y-1.5">
+            <p class="text-xs font-semibold text-slate-600 dark:text-zinc-300">일치하는 물건이 없습니다</p>
+            <button type="button" onclick="resetPropertyFilters()" class="text-[11px] font-semibold text-brand-500 dark:text-blue-400 hover:underline">
+              물건 검색 초기화
             </button>
           </div>
 
@@ -808,6 +846,8 @@
 
     let state = {
       currentPropertyId: null,
+      propertySearchQuery: '',
+      propertyStatusFilter: '전체',
       searchQuery: '',
       selectedCategory: '전체',
       onlyWithAmount: false,
@@ -893,102 +933,102 @@
     function saveGistConfig() {
       try {
         localStorage.setItem(GIST_CONFIG_KEY, JSON.stringify(gistConfig));
-      } catch (e) {
-        console.error('Failed to save Gist config:', e);
-      }
-      updateSyncStatusUI();
-    }
+    function getFilteredProperties() {
+      const q = state.propertySearchQuery.trim().toLowerCase();
+      return appData.properties.filter(p => {
+        if (state.propertyStatusFilter !== '전체' && p.status !== state.propertyStatusFilter) {
+          return false;
+        }
+        if (!q) return true;
 
-    /* =========================================================================
-       5. UTILITY FUNCTIONS
-    ========================================================================= */
-    function generateId(prefix) {
-      return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    }
+        const matchBasic =
+          (p.caseNumber && p.caseNumber.toLowerCase().includes(q)) ||
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.status && p.status.toLowerCase().includes(q));
+        if (matchBasic) return true;
 
-    function getTodayDateString() {
-      const now = new Date();
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      const d = String(now.getDate()).padStart(2, '0');
-      return `${y}-${m}-${d}`;
-    }
-
-    function formatDisplayDate(dateStr) {
-      if (!dateStr) return '';
-      return dateStr.replace(/-/g, '.');
-    }
-
-    function formatCurrency(num, showSign = false) {
-      if (num === null || num === undefined || isNaN(num)) return '0원';
-      const absStr = Math.abs(Math.round(num)).toLocaleString('ko-KR');
-      if (num < 0) return `-${absStr}원`;
-      if (num > 0 && showSign) return `+${absStr}원`;
-      return `${absStr}원`;
-    }
-
-    function formatCompactCurrency(num) {
-      const abs = Math.abs(num);
-      const sign = num < 0 ? '-' : '';
-      if (abs >= 100000000) {
-        return `${sign}${(abs / 100000000).toFixed(2).replace(/\.?0+$/, '')}억`;
-      }
-      if (abs >= 10000) {
-        return `${sign}${Math.round(abs / 10000).toLocaleString('ko-KR')}만`;
-      }
-      return `${sign}${abs.toLocaleString('ko-KR')}원`;
-    }
-
-    function escapeHTML(str) {
-      if (!str) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    }
-
-    function getCategoryMeta(catId) {
-      return CATEGORIES.find(c => c.id === catId) || CATEGORIES[CATEGORIES.length - 1];
-    }
-
-    function getStatusMeta(statusId) {
-      return PROPERTY_STATUSES.find(s => s.id === statusId) || PROPERTY_STATUSES[0];
-    }
-
-    function getCurrentProperty() {
-      return appData.properties.find(p => p.id === state.currentPropertyId) || appData.properties[0];
-    }
-
-    function getPropertyRecords(propertyId) {
-      return appData.records.filter(r => r.propertyId === propertyId);
-    }
-
-    /* =========================================================================
-       6. THEME MANAGEMENT
-    ========================================================================= */
-    function toggleTheme() {
-      const isDark = document.documentElement.classList.toggle('dark');
-      localStorage.setItem('auction_log_theme', isDark ? 'dark' : 'light');
-    }
-
-    /* =========================================================================
-       7. MAIN RENDER PIPELINE
-    ========================================================================= */
-    function renderAll() {
-      renderPropertySelector();
-      renderDashboard();
-      renderFilterControls();
-      renderRecords();
+        // Also match if any record inside this property contains the keyword
+        return appData.records.some(r =>
+          r.propertyId === p.id &&
+          ((r.title && r.title.toLowerCase().includes(q)) ||
+           (r.memo && r.memo.toLowerCase().includes(q)))
+        );
+      });
     }
 
     function renderPropertySelector() {
-      const select = document.getElementById('propertySelect');
-      select.innerHTML = appData.properties.map(p => {
-        const selected = p.id === state.currentPropertyId ? 'selected' : '';
-        return `<option value="${escapeHTML(p.id)}" ${selected}>${escapeHTML(p.name)}</option>`;
+      const filteredProps = getFilteredProperties();
+      const isFilteringProps = state.propertySearchQuery.trim() !== '' || state.propertyStatusFilter !== '전체';
+
+      // Count Badge
+      document.getElementById('propertyCountBadge').textContent = isFilteringProps
+        ? `${filteredProps.length} / 총 ${appData.properties.length}건`
+        : `총 ${appData.properties.length}건`;
+
+      // Status Filter Chips
+      const statusChipsEl = document.getElementById('propertyStatusFilterChips');
+      const statusOptions = ['전체', ...PROPERTY_STATUSES.map(s => s.id)];
+      statusChipsEl.innerHTML = statusOptions.map(st => {
+        const active = state.propertyStatusFilter === st;
+        const cls = active
+          ? 'bg-slate-900 dark:bg-white text-white dark:text-zinc-900 border-slate-900 dark:border-white'
+          : 'bg-slate-50 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-400 border-slate-200/80 dark:border-zinc-700/70 hover:bg-slate-100 dark:hover:bg-zinc-700';
+        return `
+          <button type="button" onclick="selectPropertyStatusFilter('${st}')"
+            class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all whitespace-nowrap shrink-0 ${cls}">
+            ${escapeHTML(st)}
+          </button>
+        `;
       }).join('');
+
+      const selectRow = document.getElementById('propertySelectRow');
+      const quickListEl = document.getElementById('propertyQuickList');
+      const emptyStateEl = document.getElementById('propertyEmptyState');
+      const select = document.getElementById('propertySelect');
+
+      if (filteredProps.length === 0) {
+        selectRow.classList.add('hidden');
+        quickListEl.classList.add('hidden');
+        emptyStateEl.classList.remove('hidden');
+      } else {
+        selectRow.classList.remove('hidden');
+        emptyStateEl.classList.add('hidden');
+
+        // Auto-switch currentPropertyId if current selection is filtered out
+        if (!filteredProps.some(p => p.id === state.currentPropertyId)) {
+          state.currentPropertyId = filteredProps[0].id;
+        }
+
+        select.innerHTML = filteredProps.map(p => {
+          const selected = p.id === state.currentPropertyId ? 'selected' : '';
+          return `<option value="${escapeHTML(p.id)}" ${selected}>${escapeHTML(p.name)} (${escapeHTML(p.caseNumber)})</option>`;
+        }).join('');
+
+        // Show clickable quick-list pills when searching/filtering or when user has 2+ properties
+        if (isFilteringProps || filteredProps.length > 1) {
+          quickListEl.classList.remove('hidden');
+          quickListEl.innerHTML = filteredProps.map(p => {
+            const isCurrent = p.id === state.currentPropertyId;
+            const stMeta = getStatusMeta(p.status);
+            const rowCls = isCurrent
+              ? 'bg-brand-50/90 dark:bg-blue-500/15 border-brand-500/40 text-slate-900 dark:text-white'
+              : 'bg-slate-50/70 dark:bg-zinc-800/50 border-slate-200/60 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-100/80 dark:hover:bg-zinc-800';
+            return `
+              <button type="button" onclick="selectProperty('${escapeHTML(p.id)}')"
+                class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border text-left transition-all ${rowCls}">
+                <div class="min-w-0 flex-1">
+                  <div class="text-xs font-bold truncate">${escapeHTML(p.name)}</div>
+                  <div class="text-[11px] text-slate-400 dark:text-zinc-500 truncate">${escapeHTML(p.caseNumber)}</div>
+                </div>
+                <span class="px-2 py-0.5 rounded-md text-[10px] font-semibold shrink-0 ${stMeta.badge}">${escapeHTML(p.status)}</span>
+              </button>
+            `;
+          }).join('');
+        } else {
+          quickListEl.classList.add('hidden');
+          quickListEl.innerHTML = '';
+        }
+      }
 
       const prop = getCurrentProperty();
       const metaEl = document.getElementById('propertyMeta');
@@ -1357,6 +1397,36 @@
     /* =========================================================================
        8. FILTERING, SORTING & VIEW INTERACTIONS
     ========================================================================= */
+    function handlePropertySearch(val) {
+      state.propertySearchQuery = val;
+      document.getElementById('clearPropertySearchBtn').classList.toggle('hidden', !val);
+      renderPropertySelector();
+      renderDashboard();
+      renderRecords();
+    }
+
+    function clearPropertySearch() {
+      document.getElementById('propertySearchInput').value = '';
+      handlePropertySearch('');
+    }
+
+    function selectPropertyStatusFilter(status) {
+      state.propertyStatusFilter = status;
+      renderPropertySelector();
+      renderDashboard();
+      renderRecords();
+    }
+
+    function resetPropertyFilters() {
+      state.propertySearchQuery = '';
+      state.propertyStatusFilter = '전체';
+      document.getElementById('propertySearchInput').value = '';
+      document.getElementById('clearPropertySearchBtn').classList.add('hidden');
+      renderPropertySelector();
+      renderDashboard();
+      renderRecords();
+    }
+
     function selectProperty(propId) {
       state.currentPropertyId = propId;
       state.expandedRecordIds.clear();
